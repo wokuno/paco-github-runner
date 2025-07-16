@@ -196,6 +196,9 @@ sudo systemctl start github-runner-paco.target
 # Stop all runners
 sudo systemctl stop github-runner-paco.target
 
+# Stop all runners (forceful if needed)
+sudo /opt/github-runner/scripts/stop-target.sh
+
 # Restart all runners
 sudo systemctl restart github-runner-paco.target
 
@@ -216,6 +219,9 @@ sudo /opt/github-runner/scripts/start-all.sh
 
 # Stop all runners
 sudo /opt/github-runner/scripts/stop-all.sh
+
+# Emergency stop (kill all runners forcefully)
+sudo /opt/github-runner/scripts/kill-all.sh
 
 # Check status of all runners
 sudo /opt/github-runner/scripts/status-all.sh
@@ -345,7 +351,7 @@ If you have a firewall enabled, you may need to configure it:
 # Usually no additional config needed for outbound connections
 ```
 
-**RHEL/CentOS/Fedora (firewalld):**
+**RHEL/CentOS/Fedora/AlmaLinux/Rocky (firewalld):**
 ```bash
 # Usually no additional config needed for outbound connections
 # If using custom ports, open them:
@@ -372,6 +378,29 @@ sudo ./install.sh
 # Start services
 sudo ./run.sh
 ```
+
+### Stopping Issues
+
+If runners don't stop properly with normal systemctl commands:
+
+```bash
+# Try the enhanced stop script (includes timeout and kill)
+sudo /opt/github-runner/scripts/stop-all.sh
+
+# For systemd target with enhanced stopping
+sudo /opt/github-runner/scripts/stop-target.sh
+
+# Emergency stop - kills all runner processes immediately
+sudo /opt/github-runner/scripts/kill-all.sh
+
+# After emergency stop, restart normally
+sudo systemctl start github-runner-paco.target
+```
+
+**Why this happens:**
+- GitHub Actions runners sometimes don't respond to SIGTERM signals
+- Runners may be stuck waiting for jobs to complete
+- The enhanced scripts use SIGKILL after timeout for reliable stopping
 
 ## Uninstall
 

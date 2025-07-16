@@ -177,11 +177,14 @@ Type=simple
 User=${RUNNER_USER}
 WorkingDirectory=${RUNNER_DIR}
 ExecStart=${RUNNER_DIR}/run.sh
+ExecStop=/bin/bash -c 'pid=\$(pgrep -f "Runner.Listener.*${RUNNER_NAME}"); if [ -n "\$pid" ]; then kill -TERM \$pid; sleep 10; kill -KILL \$pid 2>/dev/null || true; fi'
 Restart=always
 RestartSec=5
-KillMode=process
-KillSignal=SIGINT
-TimeoutStopSec=5min
+KillMode=mixed
+KillSignal=SIGTERM
+SendSIGKILL=yes
+TimeoutStopSec=30
+FinalKillSignal=SIGKILL
 
 # Environment variables
 Environment=RUNNER_ALLOW_RUNASROOT=false
@@ -250,11 +253,37 @@ cat > "$RUNNER_HOME/scripts/stop-all.sh" << EOF
 POOL_NAME="paco"
 RUNNER_COUNT="$RUNNER_COUNT"
 
+echo "Stopping all GitHub runners forcefully..."
+
 for i in \$(seq 1 \$RUNNER_COUNT); do
     SERVICE_NAME="github-runner-\${POOL_NAME}-\$i"
+    RUNNER_NAME="\${POOL_NAME}-runner-\$i"
+    
     echo "Stopping \$SERVICE_NAME..."
-    systemctl stop "\$SERVICE_NAME"
+    
+    # Try normal stop first
+    systemctl stop "\$SERVICE_NAME" &
+    STOP_PID=\$!
+    
+    # Wait up to 15 seconds for normal stop
+    sleep 15
+    
+    # Check if stop is still running, if so kill it and force stop
+    if kill -0 \$STOP_PID 2>/dev/null; then
+        echo "Normal stop taking too long, forcing stop for \$SERVICE_NAME..."
+        kill \$STOP_PID 2>/dev/null || true
+        systemctl kill --signal=SIGKILL "\$SERVICE_NAME" 2>/dev/null || true
+    fi
+    
+    # Double-check and kill any remaining runner processes
+    RUNNER_PID=\$(pgrep -f "Runner.Listener.*\$RUNNER_NAME" 2>/dev/null || true)
+    if [ -n "\$RUNNER_PID" ]; then
+        echo "Killing remaining runner process \$RUNNER_PID for \$RUNNER_NAME..."
+        kill -KILL \$RUNNER_PID 2>/dev/null || true
+    fi
 done
+
+echo "All runners stopped."
 EOF
 
 cat > "$RUNNER_HOME/scripts/status-all.sh" << EOF
@@ -299,6 +328,48 @@ else
 fi
 EOF
 
+cat > "$RUNNER_HOME/scripts/kill-all.sh" << EOF
+#!/bin/bash
+POOL_NAME="paco"
+RUNNER_COUNT="$RUNNER_COUNT"
+
+echo "Emergency stop: Killing all GitHub runners forcefully..."
+
+# First, kill systemd services
+for i in \$(seq 1 \$RUNNER_COUNT); do
+    SERVICE_NAME="github-runner-\${POOL_NAME}-\$i"
+    echo "Force killing service \$SERVICE_NAME..."
+    systemctl kill --signal=SIGKILL "\$SERVICE_NAME" 2>/dev/null || true
+done
+
+# Then kill any remaining runner processes by name
+echo "Killing any remaining runner processes..."
+pkill -KILL -f "Runner.Listener" 2>/dev/null || true
+pkill -KILL -f "Runner.Worker" 2>/dev/null || true
+
+# Kill dotnet processes that might be stuck
+echo "Killing any stuck dotnet processes..."
+pkill -KILL -f "dotnet.*Runner" 2>/dev/null || true
+
+echo "Emergency stop completed. All runner processes should be terminated."
+echo "You may need to restart the services: systemctl start github-runner-paco.target"
+EOF
+
+cat > "$RUNNER_HOME/scripts/stop-target.sh" << EOF
+#!/bin/bash
+POOL_NAME="paco"
+
+echo "Stopping github-runner-\$POOL_NAME.target..."
+
+# Try normal stop first
+timeout 30 systemctl stop "github-runner-\$POOL_NAME.target" || {
+    echo "Normal stop failed or timed out, using kill method..."
+    systemctl kill --signal=SIGKILL "github-runner-\$POOL_NAME.target"
+}
+
+echo "Target stopped."
+EOF
+
 # Make scripts executable
 chmod +x "$RUNNER_HOME/scripts/"*.sh
 chown -R "$RUNNER_USER:$RUNNER_USER" "$RUNNER_HOME/scripts"
@@ -323,15 +394,17 @@ echo ""
 echo -e "${BLUE}=== Systemd Target Management (Recommended) ===${NC}"
 echo "  Start all runners:   systemctl start github-runner-${POOL_NAME}.target"
 echo "  Stop all runners:    systemctl stop github-runner-${POOL_NAME}.target"
+echo "  Force stop (if needed): $RUNNER_HOME/scripts/stop-target.sh"
 echo "  Restart all runners: systemctl restart github-runner-${POOL_NAME}.target"
 echo "  Status all runners:  systemctl status github-runner-${POOL_NAME}.target"
 echo "  Enable on boot:      systemctl enable github-runner-${POOL_NAME}.target"
 echo ""
 echo -e "${BLUE}=== Script Management ===${NC}"
-echo "  Start all runners:  $RUNNER_HOME/scripts/start-all.sh"
-echo "  Stop all runners:   $RUNNER_HOME/scripts/stop-all.sh"
-echo "  Status all runners: $RUNNER_HOME/scripts/status-all.sh"
-echo "  View logs:          $RUNNER_HOME/scripts/logs-all.sh [runner_number|all] [options]"
+echo "  Start all runners:   $RUNNER_HOME/scripts/start-all.sh"
+echo "  Stop all runners:    $RUNNER_HOME/scripts/stop-all.sh (enhanced with kill)"
+echo "  Emergency stop:      $RUNNER_HOME/scripts/kill-all.sh"
+echo "  Status all runners:  $RUNNER_HOME/scripts/status-all.sh"
+echo "  View logs:           $RUNNER_HOME/scripts/logs-all.sh [runner_number|all] [options]"
 echo ""
 echo -e "${BLUE}=== Individual Service Management ===${NC}"
 echo "  systemctl start github-runner-${POOL_NAME}-1"
