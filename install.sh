@@ -152,6 +152,7 @@ for i in $(seq 1 $RUNNER_COUNT); do
 Description=GitHub Actions Runner (${RUNNER_NAME})
 After=network.target
 Wants=network.target
+PartOf=github-runner-${POOL_NAME}.target
 
 [Service]
 Type=simple
@@ -183,10 +184,35 @@ SyslogIdentifier=${SERVICE_NAME}
 
 [Install]
 WantedBy=multi-user.target
+WantedBy=github-runner-${POOL_NAME}.target
 EOF
 
     echo -e "${GREEN}Created service file: ${SERVICE_NAME}.service${NC}"
 done
+
+# Create systemd target file for managing all runners as a group
+echo -e "${YELLOW}Creating systemd target file for runner pool...${NC}"
+cat > "/etc/systemd/system/github-runner-${POOL_NAME}.target" << EOF
+[Unit]
+Description=GitHub Actions Runner Pool (${POOL_NAME})
+Documentation=https://docs.github.com/en/actions/hosting-your-own-runners
+After=multi-user.target
+Wants=multi-user.target
+EOF
+
+# Add all runner services as requirements to the target
+for i in $(seq 1 $RUNNER_COUNT); do
+    SERVICE_NAME="github-runner-${POOL_NAME}-$i"
+    echo "Wants=${SERVICE_NAME}.service" >> "/etc/systemd/system/github-runner-${POOL_NAME}.target"
+done
+
+cat >> "/etc/systemd/system/github-runner-${POOL_NAME}.target" << EOF
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+echo -e "${GREEN}Created target file: github-runner-${POOL_NAME}.target${NC}"
 
 # Create management scripts
 cat > "$RUNNER_HOME/scripts/start-all.sh" << EOF
@@ -262,7 +288,11 @@ chown -R "$RUNNER_USER:$RUNNER_USER" "$RUNNER_HOME/scripts"
 # Reload systemd
 systemctl daemon-reload
 
-# Enable services
+# Enable the target and all services
+echo -e "${YELLOW}Enabling systemd target and services...${NC}"
+systemctl enable "github-runner-${POOL_NAME}.target"
+echo -e "${GREEN}Enabled target: github-runner-${POOL_NAME}.target${NC}"
+
 for i in $(seq 1 $RUNNER_COUNT); do
     SERVICE_NAME="github-runner-${POOL_NAME}-$i"
     systemctl enable "$SERVICE_NAME"
@@ -271,12 +301,21 @@ done
 
 echo -e "${GREEN}Installation completed successfully!${NC}"
 echo -e "${YELLOW}Management commands:${NC}"
+echo ""
+echo -e "${BLUE}=== Systemd Target Management (Recommended) ===${NC}"
+echo "  Start all runners:   systemctl start github-runner-${POOL_NAME}.target"
+echo "  Stop all runners:    systemctl stop github-runner-${POOL_NAME}.target"
+echo "  Restart all runners: systemctl restart github-runner-${POOL_NAME}.target"
+echo "  Status all runners:  systemctl status github-runner-${POOL_NAME}.target"
+echo "  Enable on boot:      systemctl enable github-runner-${POOL_NAME}.target"
+echo ""
+echo -e "${BLUE}=== Script Management ===${NC}"
 echo "  Start all runners:  $RUNNER_HOME/scripts/start-all.sh"
 echo "  Stop all runners:   $RUNNER_HOME/scripts/stop-all.sh"
 echo "  Status all runners: $RUNNER_HOME/scripts/status-all.sh"
 echo "  View logs:          $RUNNER_HOME/scripts/logs-all.sh [runner_number|all] [options]"
 echo ""
-echo -e "${YELLOW}Or use systemctl directly:${NC}"
+echo -e "${BLUE}=== Individual Service Management ===${NC}"
 echo "  systemctl start github-runner-${POOL_NAME}-1"
 echo "  systemctl status github-runner-${POOL_NAME}-1"
 echo "  journalctl -u github-runner-${POOL_NAME}-1 -f"

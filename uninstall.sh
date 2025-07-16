@@ -49,6 +49,26 @@ fi
 
 # Stop and disable all services
 echo -e "${YELLOW}Stopping and disabling services...${NC}"
+
+# Stop and disable the target first
+TARGET_NAME="github-runner-${POOL_NAME}.target"
+if systemctl is-active --quiet "$TARGET_NAME"; then
+    systemctl stop "$TARGET_NAME"
+    echo -e "${GREEN}Stopped $TARGET_NAME${NC}"
+fi
+
+if systemctl is-enabled --quiet "$TARGET_NAME" 2>/dev/null; then
+    systemctl disable "$TARGET_NAME"
+    echo -e "${GREEN}Disabled $TARGET_NAME${NC}"
+fi
+
+# Remove target file
+if [[ -f "/etc/systemd/system/${TARGET_NAME}" ]]; then
+    rm "/etc/systemd/system/${TARGET_NAME}"
+    echo -e "${GREEN}Removed target file for $TARGET_NAME${NC}"
+fi
+
+# Now handle individual services
 for i in $(seq 1 $RUNNER_COUNT); do
     SERVICE_NAME="github-runner-${POOL_NAME}-$i"
     echo "Processing $SERVICE_NAME..."

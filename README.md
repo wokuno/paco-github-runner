@@ -182,7 +182,30 @@ sudo ./install.sh
 
 ## Management Commands
 
-### Start/Stop Services
+### Systemd Target Management (Recommended)
+
+The easiest way to manage all runners as a group:
+
+```bash
+# Start all runners
+sudo systemctl start github-runner-paco.target
+
+# Stop all runners
+sudo systemctl stop github-runner-paco.target
+
+# Restart all runners
+sudo systemctl restart github-runner-paco.target
+
+# Check status of all runners
+sudo systemctl status github-runner-paco.target
+
+# Enable auto-start on boot
+sudo systemctl enable github-runner-paco.target
+```
+
+### Script Management
+
+Alternative management using provided scripts:
 
 ```bash
 # Start all runners
@@ -196,6 +219,8 @@ sudo /opt/github-runner/scripts/status-all.sh
 ```
 
 ### Individual Service Management
+
+For managing specific runners:
 
 ```bash
 # Manage individual runners
@@ -238,10 +263,15 @@ sudo journalctl -u 'github-runner-paco-*' -f
 
 ## Systemd Services
 
-The installation creates systemd services for each runner:
+The installation creates systemd services for each runner plus a target for managing them as a group:
+
+**Individual Services:**
 - `github-runner-paco-1.service`
 - `github-runner-paco-2.service`
 - `github-runner-paco-N.service` (based on your selection)
+
+**Group Target:**
+- `github-runner-paco.target` - Controls all runners as a single unit
 
 Services are configured with:
 - Automatic restart on failure
