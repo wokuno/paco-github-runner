@@ -378,7 +378,7 @@ esac
 
 echo ""
 read_with_default "${YELLOW}Runner Labels (comma-separated)" "$DEFAULT_LABELS" "RUNNER_LABELS"
-read_with_default "${YELLOW}Runner Group (for organizations)" "default" "RUNNER_GROUP"
+read_with_default "${YELLOW}Runner Group (for organizations)" "paco" "RUNNER_GROUP"
 
 # Create configuration file
 echo ""
@@ -436,7 +436,7 @@ GITHUB_REPO_URL=""
 RUNNER_LABELS="self-hosted,Linux,X64,paco"
 
 # Runner Group (for organizations)
-RUNNER_GROUP="default"
+RUNNER_GROUP="paco"
 EOF
 
 chown "$RUNNER_USER:$RUNNER_USER" "$RUNNER_HOME/config.template"

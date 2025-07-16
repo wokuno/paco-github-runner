@@ -39,6 +39,10 @@ echo -e "${YELLOW}Using configuration from: $CONFIG_FILE${NC}"
 # Source configuration
 source "$CONFIG_FILE"
 
+# Set default values for optional variables
+RUNNER_GROUP="${RUNNER_GROUP:-paco}"
+RUNNER_LABELS="${RUNNER_LABELS:-self-hosted,Linux,X64,paco}"
+
 # Get runner count from config or detect from existing directories
 if [[ -n "$RUNNER_COUNT" ]]; then
     echo -e "${YELLOW}Using RUNNER_COUNT from config: $RUNNER_COUNT${NC}"
@@ -127,14 +131,28 @@ for i in $(seq 1 $RUNNER_COUNT); do
     fi
     
     # Configure the runner
-    sudo -u "$RUNNER_USER" ./config.sh \
-        --url "$REGISTRATION_URL" \
-        --token "$REG_TOKEN" \
-        --name "$RUNNER_NAME" \
-        --labels "$RUNNER_LABELS" \
-        --work "_work" \
-        --unattended \
-        --replace
+    if [[ -n "$GITHUB_ORG" ]]; then
+        # For organization runners, always use runnergroup
+        sudo -u "$RUNNER_USER" ./config.sh \
+            --url "$REGISTRATION_URL" \
+            --token "$REG_TOKEN" \
+            --name "$RUNNER_NAME" \
+            --labels "$RUNNER_LABELS" \
+            --runnergroup "$RUNNER_GROUP" \
+            --work "_work" \
+            --unattended \
+            --replace
+    else
+        # For repository runners, don't use runnergroup
+        sudo -u "$RUNNER_USER" ./config.sh \
+            --url "$REGISTRATION_URL" \
+            --token "$REG_TOKEN" \
+            --name "$RUNNER_NAME" \
+            --labels "$RUNNER_LABELS" \
+            --work "_work" \
+            --unattended \
+            --replace
+    fi
     
     echo -e "${GREEN}Successfully configured runner: $RUNNER_NAME${NC}"
 done

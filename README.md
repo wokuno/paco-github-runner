@@ -60,7 +60,10 @@ Choose one of:
 ### Runner Configuration
 - **Number of Runners**: Choose how many runners to create (1-10)
 - **Labels**: Auto-detected based on your system (OS, architecture) + "paco" pool identifier
-- **Group**: Runner group for organization (default: "default")
+- **Group**: Runner group for organization (default: "paco")
+  - Create the "paco" group in your GitHub organization settings if it doesn't exist
+  - This allows you to organize and manage runners by teams or projects
+  - Repository-level runners don't use groups
 
 ### 1. Setup
 
@@ -172,7 +175,7 @@ GITHUB_REPO_URL="https://github.com/user/repo"
 RUNNER_LABELS="self-hosted,Linux,X64,paco,ubuntu"
 
 # Runner group (for organizations)
-RUNNER_GROUP="default"
+RUNNER_GROUP="paco"
 ```
 
 After modifying the configuration, re-run:
