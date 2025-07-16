@@ -223,6 +223,9 @@ sudo /opt/github-runner/scripts/stop-all.sh
 # Emergency stop (kill all runners forcefully)
 sudo /opt/github-runner/scripts/kill-all.sh
 
+# Clean up runner state (for session conflicts)
+sudo /opt/github-runner/scripts/cleanup-all.sh
+
 # Check status of all runners
 sudo /opt/github-runner/scripts/status-all.sh
 ```
@@ -328,6 +331,37 @@ sudo journalctl -u github-runner-paco-1 -f
 2. **Service won't start**: Check logs with `journalctl`
 3. **Runner offline**: Restart service with `systemctl restart`
 4. **Permission issues**: Ensure proper ownership of runner directories
+5. **"A session for this runner already exists"**: Use cleanup script and re-install
+
+### Runner Session Issues
+
+If you see "A session for this runner already exists" in the logs:
+
+```bash
+# Option 1: Use the standalone cleanup script
+sudo ./cleanup.sh
+
+# Option 2: Use the cleanup script (after install.sh has been run)
+sudo /opt/github-runner/scripts/cleanup-all.sh
+
+# Then re-register the runners
+sudo ./install.sh
+
+# Start the runners
+sudo systemctl start github-runner-paco.target
+```
+
+**Why this happens:**
+- Previous runner registration wasn't properly cleaned up
+- Runner processes were killed without proper deregistration
+- GitHub still thinks the runner is active
+- State files (.runner, .credentials) are left over from previous runs
+
+The cleanup script will:
+- Stop all runner services
+- Kill any remaining runner processes
+- Remove all runner state files
+- Prepare for fresh registration
 
 ### Distribution-Specific Issues
 

@@ -124,11 +124,33 @@ for i in $(seq 1 $RUNNER_COUNT); do
     
     cd "$RUNNER_DIR"
     
+    # Stop any running services for this runner first
+    SERVICE_NAME="github-runner-${POOL_NAME}-$i"
+    echo -e "${YELLOW}Stopping any existing service: $SERVICE_NAME${NC}"
+    systemctl stop "$SERVICE_NAME" 2>/dev/null || true
+    systemctl kill --signal=SIGKILL "$SERVICE_NAME" 2>/dev/null || true
+    
+    # Kill any remaining runner processes for this specific runner
+    pkill -KILL -f "Runner.Listener.*$RUNNER_NAME" 2>/dev/null || true
+    
     # Remove existing configuration if it exists
     if [[ -f ".runner" ]]; then
         echo -e "${YELLOW}Removing existing configuration for $RUNNER_NAME${NC}"
-        sudo -u "$RUNNER_USER" ./config.sh remove --token "$REG_TOKEN" || true
+        # Try to remove gracefully first
+        sudo -u "$RUNNER_USER" ./config.sh remove --token "$REG_TOKEN" 2>/dev/null || {
+            echo -e "${YELLOW}Graceful removal failed, forcing cleanup for $RUNNER_NAME${NC}"
+            # Force remove runner files if graceful removal fails
+            sudo -u "$RUNNER_USER" rm -f .runner .credentials .credentials_rsaparams || true
+            sudo -u "$RUNNER_USER" rm -rf _work || true
+        }
     fi
+    
+    # Additional cleanup - remove any leftover state files
+    sudo -u "$RUNNER_USER" rm -f .runner .credentials .credentials_rsaparams 2>/dev/null || true
+    sudo -u "$RUNNER_USER" rm -rf _work 2>/dev/null || true
+    
+    # Wait a moment for any processes to fully terminate
+    sleep 2
     
     # Configure the runner
     if [[ -n "$GITHUB_ORG" ]]; then
@@ -370,6 +392,44 @@ timeout 30 systemctl stop "github-runner-\$POOL_NAME.target" || {
 echo "Target stopped."
 EOF
 
+cat > "$RUNNER_HOME/scripts/cleanup-all.sh" << EOF
+#!/bin/bash
+POOL_NAME="paco"
+RUNNER_COUNT="$RUNNER_COUNT"
+
+echo "Cleaning up all GitHub runners..."
+
+# Stop all services first
+echo "Stopping all services..."
+for i in \$(seq 1 \$RUNNER_COUNT); do
+    SERVICE_NAME="github-runner-\${POOL_NAME}-\$i"
+    echo "Stopping \$SERVICE_NAME..."
+    systemctl stop "\$SERVICE_NAME" 2>/dev/null || true
+    systemctl kill --signal=SIGKILL "\$SERVICE_NAME" 2>/dev/null || true
+done
+
+# Kill any remaining processes
+echo "Killing any remaining runner processes..."
+pkill -KILL -f "Runner.Listener" 2>/dev/null || true
+pkill -KILL -f "Runner.Worker" 2>/dev/null || true
+pkill -KILL -f "dotnet.*Runner" 2>/dev/null || true
+
+# Clean up runner state files
+echo "Cleaning up runner state files..."
+for i in \$(seq 1 \$RUNNER_COUNT); do
+    RUNNER_DIR="$RUNNER_HOME/\${POOL_NAME}-runner-\$i"
+    if [ -d "\$RUNNER_DIR" ]; then
+        echo "Cleaning up \$RUNNER_DIR..."
+        sudo -u $RUNNER_USER rm -f "\$RUNNER_DIR/.runner" 2>/dev/null || true
+        sudo -u $RUNNER_USER rm -f "\$RUNNER_DIR/.credentials" 2>/dev/null || true
+        sudo -u $RUNNER_USER rm -f "\$RUNNER_DIR/.credentials_rsaparams" 2>/dev/null || true
+        sudo -u $RUNNER_USER rm -rf "\$RUNNER_DIR/_work" 2>/dev/null || true
+    fi
+done
+
+echo "Cleanup completed. You can now run './install.sh' to re-register runners."
+EOF
+
 # Make scripts executable
 chmod +x "$RUNNER_HOME/scripts/"*.sh
 chown -R "$RUNNER_USER:$RUNNER_USER" "$RUNNER_HOME/scripts"
@@ -403,6 +463,7 @@ echo -e "${BLUE}=== Script Management ===${NC}"
 echo "  Start all runners:   $RUNNER_HOME/scripts/start-all.sh"
 echo "  Stop all runners:    $RUNNER_HOME/scripts/stop-all.sh (enhanced with kill)"
 echo "  Emergency stop:      $RUNNER_HOME/scripts/kill-all.sh"
+echo "  Cleanup runners:     $RUNNER_HOME/scripts/cleanup-all.sh"
 echo "  Status all runners:  $RUNNER_HOME/scripts/status-all.sh"
 echo "  View logs:           $RUNNER_HOME/scripts/logs-all.sh [runner_number|all] [options]"
 echo ""
