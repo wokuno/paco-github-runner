@@ -13,7 +13,23 @@ NC='\033[0m' # No Color
 
 # Configuration
 POOL_NAME="paco"
-RUNNER_COUNT=4
+RUNNER_HOME="/opt/github-runner"
+
+# Get runner count from config file
+CONFIG_FILE="$RUNNER_HOME/config.env"
+if [[ -f "$CONFIG_FILE" ]]; then
+    source "$CONFIG_FILE"
+fi
+
+# If RUNNER_COUNT not set, detect from directories
+if [[ -z "$RUNNER_COUNT" ]]; then
+    RUNNER_COUNT=$(find "$RUNNER_HOME" -maxdepth 1 -name "${POOL_NAME}-runner-*" -type d 2>/dev/null | wc -l)
+    if [[ $RUNNER_COUNT -eq 0 ]]; then
+        echo -e "${RED}No runner directories found${NC}"
+        echo -e "${YELLOW}Please run ./setup.sh first${NC}"
+        exit 1
+    fi
+fi
 
 echo -e "${GREEN}Starting GitHub Runners...${NC}"
 

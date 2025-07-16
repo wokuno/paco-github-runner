@@ -14,8 +14,22 @@ NC='\033[0m' # No Color
 # Configuration
 RUNNER_USER="github-runner"
 RUNNER_HOME="/opt/github-runner"
-RUNNER_COUNT=4
 POOL_NAME="paco"
+
+# Get runner count from config file or detect from directories
+CONFIG_FILE="$RUNNER_HOME/config.env"
+if [[ -f "$CONFIG_FILE" ]]; then
+    source "$CONFIG_FILE"
+fi
+
+# If RUNNER_COUNT not set, detect from directories
+if [[ -z "$RUNNER_COUNT" ]]; then
+    RUNNER_COUNT=$(find "$RUNNER_HOME" -maxdepth 1 -name "${POOL_NAME}-runner-*" -type d 2>/dev/null | wc -l)
+    if [[ $RUNNER_COUNT -eq 0 ]]; then
+        echo -e "${YELLOW}No runner directories found, will clean up services anyway${NC}"
+        RUNNER_COUNT=10  # Check up to 10 services to be thorough
+    fi
+fi
 
 echo -e "${YELLOW}Starting GitHub Runner Uninstall...${NC}"
 

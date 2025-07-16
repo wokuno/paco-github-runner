@@ -14,7 +14,6 @@ NC='\033[0m' # No Color
 # Configuration
 RUNNER_USER="github-runner"
 RUNNER_HOME="/opt/github-runner"
-RUNNER_COUNT=4
 POOL_NAME="paco"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -39,6 +38,20 @@ echo -e "${YELLOW}Using configuration from: $CONFIG_FILE${NC}"
 
 # Source configuration
 source "$CONFIG_FILE"
+
+# Get runner count from config or detect from existing directories
+if [[ -n "$RUNNER_COUNT" ]]; then
+    echo -e "${YELLOW}Using RUNNER_COUNT from config: $RUNNER_COUNT${NC}"
+else
+    # Count existing runner directories
+    RUNNER_COUNT=$(find "$RUNNER_HOME" -maxdepth 1 -name "${POOL_NAME}-runner-*" -type d 2>/dev/null | wc -l)
+    if [[ $RUNNER_COUNT -eq 0 ]]; then
+        echo -e "${RED}No runner directories found and RUNNER_COUNT not set in config${NC}"
+        echo -e "${YELLOW}Please run ./setup.sh first${NC}"
+        exit 1
+    fi
+    echo -e "${YELLOW}Detected $RUNNER_COUNT existing runner directories${NC}"
+fi
 
 # Validate required variables
 if [[ -z "$GITHUB_TOKEN" ]]; then
@@ -176,69 +189,69 @@ EOF
 done
 
 # Create management scripts
-cat > "$RUNNER_HOME/scripts/start-all.sh" << 'EOF'
+cat > "$RUNNER_HOME/scripts/start-all.sh" << EOF
 #!/bin/bash
 POOL_NAME="paco"
-RUNNER_COUNT=4
+RUNNER_COUNT="$RUNNER_COUNT"
 
-for i in $(seq 1 $RUNNER_COUNT); do
-    SERVICE_NAME="github-runner-${POOL_NAME}-$i"
-    echo "Starting $SERVICE_NAME..."
-    systemctl start "$SERVICE_NAME"
+for i in \$(seq 1 \$RUNNER_COUNT); do
+    SERVICE_NAME="github-runner-\${POOL_NAME}-\$i"
+    echo "Starting \$SERVICE_NAME..."
+    systemctl start "\$SERVICE_NAME"
 done
 EOF
 
-cat > "$RUNNER_HOME/scripts/stop-all.sh" << 'EOF'
+cat > "$RUNNER_HOME/scripts/stop-all.sh" << EOF
 #!/bin/bash
 POOL_NAME="paco"
-RUNNER_COUNT=4
+RUNNER_COUNT="$RUNNER_COUNT"
 
-for i in $(seq 1 $RUNNER_COUNT); do
-    SERVICE_NAME="github-runner-${POOL_NAME}-$i"
-    echo "Stopping $SERVICE_NAME..."
-    systemctl stop "$SERVICE_NAME"
+for i in \$(seq 1 \$RUNNER_COUNT); do
+    SERVICE_NAME="github-runner-\${POOL_NAME}-\$i"
+    echo "Stopping \$SERVICE_NAME..."
+    systemctl stop "\$SERVICE_NAME"
 done
 EOF
 
-cat > "$RUNNER_HOME/scripts/status-all.sh" << 'EOF'
+cat > "$RUNNER_HOME/scripts/status-all.sh" << EOF
 #!/bin/bash
 POOL_NAME="paco"
-RUNNER_COUNT=4
+RUNNER_COUNT="$RUNNER_COUNT"
 
-for i in $(seq 1 $RUNNER_COUNT); do
-    SERVICE_NAME="github-runner-${POOL_NAME}-$i"
-    echo "=== $SERVICE_NAME ==="
-    systemctl status "$SERVICE_NAME" --no-pager -l
+for i in \$(seq 1 \$RUNNER_COUNT); do
+    SERVICE_NAME="github-runner-\${POOL_NAME}-\$i"
+    echo "=== \$SERVICE_NAME ==="
+    systemctl status "\$SERVICE_NAME" --no-pager -l
     echo
 done
 EOF
 
-cat > "$RUNNER_HOME/scripts/logs-all.sh" << 'EOF'
+cat > "$RUNNER_HOME/scripts/logs-all.sh" << EOF
 #!/bin/bash
 POOL_NAME="paco"
-RUNNER_COUNT=4
+RUNNER_COUNT="$RUNNER_COUNT"
 
-if [[ $# -eq 0 ]]; then
-    echo "Usage: $0 [runner_number] [journalctl_options]"
-    echo "       $0 all [journalctl_options]"
-    echo "Example: $0 1 -f"
-    echo "Example: $0 all --since '1 hour ago'"
+if [[ \$# -eq 0 ]]; then
+    echo "Usage: \$0 [runner_number] [journalctl_options]"
+    echo "       \$0 all [journalctl_options]"
+    echo "Example: \$0 1 -f"
+    echo "Example: \$0 all --since '1 hour ago'"
     exit 1
 fi
 
-if [[ "$1" == "all" ]]; then
+if [[ "\$1" == "all" ]]; then
     shift
-    for i in $(seq 1 $RUNNER_COUNT); do
-        SERVICE_NAME="github-runner-${POOL_NAME}-$i"
-        echo "=== Logs for $SERVICE_NAME ==="
-        journalctl -u "$SERVICE_NAME" "$@" --no-pager
+    for i in \$(seq 1 \$RUNNER_COUNT); do
+        SERVICE_NAME="github-runner-\${POOL_NAME}-\$i"
+        echo "=== Logs for \$SERVICE_NAME ==="
+        journalctl -u "\$SERVICE_NAME" "\$@" --no-pager
         echo
     done
 else
-    RUNNER_NUM="$1"
+    RUNNER_NUM="\$1"
     shift
-    SERVICE_NAME="github-runner-${POOL_NAME}-$RUNNER_NUM"
-    journalctl -u "$SERVICE_NAME" "$@"
+    SERVICE_NAME="github-runner-\${POOL_NAME}-\$RUNNER_NUM"
+    journalctl -u "\$SERVICE_NAME" "\$@"
 fi
 EOF
 

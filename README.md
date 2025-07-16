@@ -1,12 +1,12 @@
 # Paco GitHub Runner
 
-A complete solution for setting up and managing GitHub self-hosted runners as systemd services. This project creates a pool of 4 runners named "paco" that can be used for GitHub Actions workflows.
+A complete solution for setting up and managing GitHub self-hosted runners as systemd services. This project creates a configurable pool of runners named "paco" (1-10 runners) that can be used for GitHub Actions workflows.
 
 ## Features
 
 - **Automated Setup**: Complete installation and configuration scripts
 - **Systemd Integration**: Runners run as systemd services with automatic restart
-- **Pool Management**: Creates 4 runners in a "paco" pool
+- **Pool Management**: Creates a configurable pool of "paco" runners (1-10 runners)
 - **Security**: Runs with dedicated user and proper permissions
 - **Monitoring**: Built-in logging and status monitoring
 - **Easy Management**: Scripts for start, stop, status, and log viewing
@@ -58,6 +58,7 @@ Choose one of:
 3. **Specific Repository** - Register runners for a single repository
 
 ### Runner Configuration
+- **Number of Runners**: Choose how many runners to create (1-10)
 - **Labels**: Auto-detected based on your system (OS, architecture) + "paco" pool identifier
 - **Group**: Runner group for organization (default: "default")
 
@@ -79,6 +80,7 @@ This script will:
 - Create the configuration file
 
 During setup, you'll be prompted for:
+- **Number of Runners**: How many runners to create (1-10, recommended: 2-4)
 - **GitHub Token**: Personal access token with appropriate permissions
 - **Registration Target**: Organization, user account, or specific repository
 - **Runner Labels**: Tags to identify your runners (auto-detected based on OS/architecture)
@@ -116,8 +118,8 @@ sudo ./install.sh
 
 This will:
 - Use the configuration created during setup
-- Register 4 runners with GitHub
-- Create systemd service files
+- Register the specified number of runners with GitHub
+- Create systemd service files for each runner
 - Enable services for auto-start
 - Create management scripts
 
@@ -223,8 +225,7 @@ sudo journalctl -u 'github-runner-paco-*' -f
 /opt/github-runner/
 ├── paco-runner-1/          # Runner 1 directory
 ├── paco-runner-2/          # Runner 2 directory
-├── paco-runner-3/          # Runner 3 directory
-├── paco-runner-4/          # Runner 4 directory
+├── paco-runner-N/          # Additional runners based on your selection
 ├── logs/                   # Log directory
 ├── scripts/                # Management scripts
 │   ├── start-all.sh
@@ -237,11 +238,10 @@ sudo journalctl -u 'github-runner-paco-*' -f
 
 ## Systemd Services
 
-The installation creates these systemd services:
+The installation creates systemd services for each runner:
 - `github-runner-paco-1.service`
 - `github-runner-paco-2.service`
-- `github-runner-paco-3.service`
-- `github-runner-paco-4.service`
+- `github-runner-paco-N.service` (based on your selection)
 
 Services are configured with:
 - Automatic restart on failure
