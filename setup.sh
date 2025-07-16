@@ -184,7 +184,9 @@ echo -e "${YELLOW}Installing runner dependencies...${NC}"
 for i in $(seq 1 $RUNNER_COUNT); do
     RUNNER_DIR="$RUNNER_HOME/${POOL_NAME}-runner-$i"
     cd "$RUNNER_DIR"
-    sudo -u "$RUNNER_USER" ./bin/installdependencies.sh
+    # Run dependency installation as root, then fix ownership
+    ./bin/installdependencies.sh
+    chown -R "$RUNNER_USER:$RUNNER_USER" "$RUNNER_DIR"
 done
 
 # Interactive configuration
