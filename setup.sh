@@ -132,11 +132,19 @@ case $OS in
             libffi-devel \
             python3-devel \
             python3-pip \
-            zlib-devel \
             krb5-devel \
             libicu-devel \
             glibc-locale \
             ca-certificates
+        
+        # Handle zlib conflict - check what's already installed
+        echo -e "${YELLOW}Handling zlib dependencies...${NC}"
+        if zypper search -i zlib-ng-compat-devel >/dev/null 2>&1; then
+            echo -e "${YELLOW}Using existing zlib-ng-compat-devel (compatible with zlib-devel)${NC}"
+        else
+            # Try to install zlib-devel, but don't fail if it conflicts
+            zypper install -y zlib-devel || echo -e "${YELLOW}zlib-devel installation skipped due to conflicts${NC}"
+        fi
         
         # Try to install .NET Core dependencies for openSUSE
         echo -e "${YELLOW}Installing additional .NET dependencies for openSUSE...${NC}"
